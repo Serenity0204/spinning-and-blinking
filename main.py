@@ -2,10 +2,31 @@ import tkinter as tk
 import tkinter.ttk as ttk
 from serial import Serial
 from serial.tools.list_ports import comports
+from threading import Thread, Lock # we'll use Lock later ;)
 
+def detached_callback(f):
+    return lambda *args, **kwargs: Thread(target=f, args=args, kwargs=kwargs).start()
+
+class LockedSerial(Serial):
+    _lock: Lock = Lock()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def read(self, size=1) -> bytes:
+        with self._lock:
+            return super().read(size)
+
+    def write(self, b: bytes, /) -> int | None:
+        with self._lock:
+            super().write(b)
+
+    def close(self):
+        with self._lock:
+            super().close()
 
 class App(tk.Tk):
-    ser: Serial
+    ser: LockedSerial
 
     def __init__(self):
         super().__init__()
@@ -54,6 +75,7 @@ class App(tk.Tk):
         self.ser.close()
         SerialPortal(self) # display portal to reconnect
 
+    @detached_callback
     def toggle_motor(self):
         self.state = not self.state
         if self.state:
@@ -61,6 +83,7 @@ class App(tk.Tk):
         else:
             self.ser.write(bytes([0x0, int(self.slider_value.get()) + 99, int(self.direction)]))
 
+    @detached_callback
     def toggle_direction(self):
         self.direction = not self.direction
         direction_text = "Clockwise" if self.direction else "Counter-Clockwise"
@@ -68,6 +91,7 @@ class App(tk.Tk):
         if self.state:
             self.ser.write(bytes([0x1, int(self.slider_value.get()) + 99, int(self.direction)]))   
 
+    @detached_callback
     def update_slider_label(self, value):
         self.slider_label.config(text=f"Value: {float(value):.0f}")
         if self.state:
@@ -93,6 +117,7 @@ class SerialPortal(tk.Toplevel):
         self.parent.connect()
         self.destroy()
         self.parent.deiconify() # reveal App
+
 
 
 if __name__ == '__main__':
