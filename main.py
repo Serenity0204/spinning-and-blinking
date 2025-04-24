@@ -16,10 +16,34 @@ class App(tk.Tk):
        
         self.port = tk.StringVar() # add this
         self.state = 0
+        self.direction = True  # True for Clockwise, False for Counter-Clockwise
+
 
         ttk.Checkbutton(self, text='Toggle Motor', command=self.toggle_motor).pack()
         ttk.Button(self, text='Disconnect', command=self.disconnect, default='active').pack()
 
+        # Slider value label
+        self.slider_value = tk.DoubleVar(value=26)
+        self.slider_label = ttk.Label(self, text=f"Value: {self.slider_value.get():.0f}")
+        self.slider_label.pack(pady=5)
+
+        # Slide bar
+        self.slider = ttk.Scale(
+            self,
+            from_=1,
+            to=156,
+            orient='horizontal',
+            variable=self.slider_value,
+            command=self.update_slider_label
+        )
+        self.slider.pack(fill='x', padx=20, pady=5)
+        
+        
+        # Direction label and toggle button
+        self.direction_label = ttk.Label(self, text="Direction: Clockwise")
+        self.direction_label.pack(pady=5)
+        ttk.Button(self, text="Toggle Direction", command=self.toggle_direction).pack()
+        
         SerialPortal(self) # and this
 
     # and finally this
@@ -33,9 +57,22 @@ class App(tk.Tk):
     def toggle_motor(self):
         self.state = not self.state
         if self.state:
-            self.ser.write(bytes([0x1]))
+            self.ser.write(bytes([0x1, int(self.slider_value.get()) + 99, int(self.direction)]))        
         else:
-            self.ser.write(bytes([0x0]))
+            self.ser.write(bytes([0x0, int(self.slider_value.get()) + 99, int(self.direction)]))
+
+    def toggle_direction(self):
+        self.direction = not self.direction
+        direction_text = "Clockwise" if self.direction else "Counter-Clockwise"
+        self.direction_label.config(text=f"Direction: {direction_text}")
+        if self.state:
+            self.ser.write(bytes([0x1, int(self.slider_value.get()) + 99, int(self.direction)]))   
+
+    def update_slider_label(self, value):
+        self.slider_label.config(text=f"Value: {float(value):.0f}")
+        if self.state:
+            self.ser.write(bytes([0x1, int(self.slider_value.get()) + 99, int(self.direction)]))   
+
     def __enter__(self):
         return self
 
